@@ -1,0 +1,17 @@
+{
+  "name": "smartwinnr-restaurant-rating-platform",
+  "version": "1.0.0",
+  "description": "SmartWinnr Restaurant Rating & Review Full-Stack Platform",
+  "scripts": {
+    "server": "npm --prefix server run dev",
+    "client": "npm --prefix client run dev",
+    "build:client": "npm --prefix client run build",
+    "start": "npm --prefix server start",
+    "test": "npm --prefix server test",
+    "seed": "npm --prefix server run seed:demo",
+    "seed:admin": "npm --prefix server run seed:admin"
+  },
+  "keywords": ["mern", "restaurant", "rating", "review", "mongodb", "express", "react", "node"],
+  "author": "SmartWinnr Candidate",
+  "license": "ISC"
+}
