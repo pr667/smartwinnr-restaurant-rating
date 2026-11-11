@@ -1,7 +1,10 @@
 require("dotenv").config({ path: __dirname + "/../.env" });
 const http = require("http");
 const app = require("../app");
-const { connectDB, disconnectDB } = require("../config/db");
+const { connectDB, disconnectDB, getTestUri } = require("../config/db");
+const User = require("../models/User");
+const Restaurant = require("../models/Restaurant");
+const Review = require("../models/Review");
 
 let server;
 let baseUrl;
@@ -55,7 +58,148 @@ const runTests = async () => {
   console.log("   SMARTWINNR PLATFORM COMPREHENSIVE AUTOMATED TEST SUITE");
   console.log("=======================================================\n");
 
-  await connectDB();
+  const testUri = getTestUri();
+  const parsedTestUri = new URL(testUri);
+  const configuredTestDb = decodeURIComponent(parsedTestUri.pathname.replace(/^\//, "").split("/")[0]);
+  if (configuredTestDb !== "smartwinnr_restaurant_test" || parsedTestUri.hostname !== "cluster0.tx2biog.mongodb.net") {
+    throw new Error("Safety Violation: MONGO_TEST_URI must target smartwinnr_restaurant_test on the configured Cluster0 hostname.");
+  }
+  console.log("[Test Suite] Connecting to test database (smartwinnr_restaurant_test)...");
+  const conn = await connectDB(testUri);
+
+  if (conn.connection.name !== "smartwinnr_restaurant_test") {
+    throw new Error(
+      `Safety Violation: Automated tests must run strictly on 'smartwinnr_restaurant_test'. Connected to '${conn.connection.name}'.`
+    );
+  }
+
+  // Ensure test indexes
+  await Promise.all([User.init(), Restaurant.init(), Review.init()]);
+
+  // Never clear records not created by this test run.
+  console.log("[Test Suite] Preparing isolated test database records...");
+  const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const runEmail = (name) => `${name}.${runId}@smartwinnr.com`;
+  const createdUserIds = [];
+  const createdRestaurantIds = [];
+  const createdReviewIds = [];
+
+  // Seed baseline test users
+  const admin = await User.create({
+    name: "Platform Administrator",
+    email: runEmail("admin"),
+    password: "Admin@12345",
+    role: "ADMIN",
+  });
+  createdUserIds.push(admin._id);
+
+  const owner1 = await User.create({
+    name: "Chef Rajesh Verma",
+    email: runEmail("owner-spice"),
+    password: "Owner@12345",
+    role: "OWNER",
+  });
+  createdUserIds.push(owner1._id);
+
+  const customer1 = await User.create({
+    name: "Priya Sharma",
+    email: runEmail("priya-customer"),
+    password: "Customer@12345",
+    role: "CUSTOMER",
+  });
+  createdUserIds.push(customer1._id);
+
+  const customer2 = await User.create({
+    name: "Rahul Mehta",
+    email: runEmail("rahul-customer"),
+    password: "Customer@12345",
+    role: "CUSTOMER",
+  });
+  createdUserIds.push(customer2._id);
+
+  const customer3 = await User.create({
+    name: "Sophia Rodriguez",
+    email: runEmail("sophia-customer"),
+    password: "Customer@12345",
+    role: "CUSTOMER",
+  });
+  createdUserIds.push(customer3._id);
+
+  // Seed baseline test restaurants
+  const testRestaurants = await Restaurant.create([
+    {
+      name: "Spice Symphony",
+      location: "Hyderabad",
+      cuisine: "Indian",
+      address: "Road No. 36, Jubilee Hills, Hyderabad",
+      description: "Authentic Hyderabadi dum pukht and Awadhi delicacies.",
+      owner: owner1._id,
+    },
+    {
+      name: "Trattoria Da Tuscany",
+      location: "Bangalore",
+      cuisine: "Italian",
+      address: "100 Feet Road, Indiranagar, Bangalore",
+      description: "Artisanal wood-fired pizzas and fresh pastas.",
+      owner: null,
+    },
+    {
+      name: "Sakura Blossom Omakase",
+      location: "Mumbai",
+      cuisine: "Japanese",
+      address: "BKC Gourmet Lane, Bandra Kurla Complex, Mumbai",
+      description: "Intimate cedar wood sushi counter.",
+      owner: null,
+    },
+    {
+      name: "Cantina La Taqueria",
+      location: "Bangalore",
+      cuisine: "Mexican",
+      address: "Lavelle Road, Bangalore",
+      description: "Vibrant Mexican taco sanctuary.",
+      owner: null,
+    },
+    {
+      name: "L'Etoile Parisian Bistro",
+      location: "Delhi",
+      cuisine: "French",
+      address: "Chanakyapuri, New Delhi",
+      description: "Classic Parisian brasserie.",
+      owner: null,
+    },
+    {
+      name: "Banyan Tree Pan-Asian",
+      location: "Hyderabad",
+      cuisine: "Pan-Asian",
+      address: "Hitec City, Hyderabad",
+      description: "Contemporary Asian kitchen.",
+      owner: null,
+    },
+  ]);
+  createdRestaurantIds.push(...testRestaurants.map((restaurant) => restaurant._id));
+
+  // Seed baseline test reviews
+  const baselineReviews = await Review.create([
+    {
+      customer: customer1._id,
+      restaurant: testRestaurants[0]._id,
+      rating: 5,
+      content: "The Dum Biryani is unequivocally world-class.",
+    },
+    {
+      customer: customer2._id,
+      restaurant: testRestaurants[0]._id,
+      rating: 4,
+      content: "Splendid ambiance in Jubilee Hills.",
+    },
+    {
+      customer: customer3._id,
+      restaurant: testRestaurants[0]._id,
+      rating: 4,
+      content: "Wonderful depth of slow-cooked flavors.",
+    },
+  ]);
+  createdReviewIds.push(...baselineReviews.map((review) => review._id));
 
   // Start temporary test server
   server = app.listen(0);
@@ -104,6 +248,7 @@ const runTests = async () => {
     });
     assert(reg.status === 201 && reg.data.token, "Customer registration succeeds with HTTP 201");
     assert(reg.data.user.role === "CUSTOMER", "Public registration role is strictly forced to CUSTOMER");
+    if (reg.data.user?._id) createdUserIds.push(reg.data.user._id);
 
     // Duplicate email registration rejected
     const dupReg = await request("POST", "/api/auth/register", {
@@ -115,7 +260,7 @@ const runTests = async () => {
 
     // Customer Login
     const custLogin = await request("POST", "/api/auth/login", {
-      email: "priya.customer@smartwinnr.com",
+      email: customer1.email,
       password: "Customer@12345",
     });
     assert(custLogin.status === 200 && custLogin.data.token, "Customer login succeeds with HTTP 200 and JWT");
@@ -123,7 +268,7 @@ const runTests = async () => {
 
     // Owner Login
     const ownerLogin = await request("POST", "/api/auth/login", {
-      email: "owner.spice@smartwinnr.com",
+      email: owner1.email,
       password: "Owner@12345",
     });
     assert(ownerLogin.status === 200 && ownerLogin.data.token, "Owner login succeeds with HTTP 200 and JWT");
@@ -131,7 +276,7 @@ const runTests = async () => {
 
     // Admin Login
     const adminLogin = await request("POST", "/api/auth/login", {
-      email: "admin@smartwinnr.com",
+      email: admin.email,
       password: "Admin@12345",
     });
     assert(adminLogin.status === 200 && adminLogin.data.token, "Admin login succeeds with HTTP 200 and JWT");
@@ -187,6 +332,20 @@ const runTests = async () => {
     }, customerToken);
     assert(dupReview.status === 409, "Duplicate review rejected with HTTP 409 'You have already reviewed this restaurant'");
 
+    // Two simultaneous requests prove the MongoDB compound unique index is the final guard.
+    const raceRestaurantId = testRestaurants[5]._id;
+    const raceBody = { rating: 4, content: "Concurrent duplicate protection integration check." };
+    const raceResults = await Promise.all([
+      request("POST", `/api/restaurants/${raceRestaurantId}/reviews`, raceBody, customerToken),
+      request("POST", `/api/restaurants/${raceRestaurantId}/reviews`, raceBody, customerToken),
+    ]);
+    const raceStatuses = raceResults.map((result) => result.status).sort();
+    const raceCount = await Review.countDocuments({ customer: customer1._id, restaurant: raceRestaurantId });
+    const raceReview = await Review.findOne({ customer: customer1._id, restaurant: raceRestaurantId }).select("_id");
+    if (raceReview) createdReviewIds.push(raceReview._id);
+    assert(raceStatuses[0] === 201 && raceStatuses[1] === 409 && raceCount === 1,
+      "Concurrent duplicate review requests yield one 201, one 409, and exactly one database document");
+
     // Rating value boundary checks: reject 0, 6, 3.5
     const zeroRating = await request("POST", `/api/restaurants/${restaurantsList[4]._id}/reviews`, {
       rating: 0,
@@ -214,6 +373,7 @@ const runTests = async () => {
     }, customerToken);
     assert(validRev.status === 201 && validRev.data.review, "Valid review submitted successfully (HTTP 201)");
     const newRevId = validRev.data.review._id;
+    createdReviewIds.push(newRevId);
 
     // Update own review
     const updateRev = await request("PATCH", `/api/reviews/${newRevId}`, {
@@ -250,9 +410,9 @@ const runTests = async () => {
     assert(adminDash.status === 200, "Admin dashboard stats retrieved successfully");
     const { totalUsers, totalRestaurants: totRest, totalReviews: totRev, averagePlatformRating, ratingDistribution } = adminDash.data.stats;
 
-    assert(totalUsers >= 6, `Admin totalUsers query accurate: ${totalUsers}`);
+    assert(totalUsers >= 5, `Admin totalUsers query accurate: ${totalUsers}`);
     assert(totRest >= 6, `Admin totalRestaurants query accurate: ${totRest}`);
-    assert(totRev >= 6, `Admin totalReviews query accurate: ${totRev}`);
+    assert(totRev >= 3, `Admin totalReviews query accurate: ${totRev}`);
     assert(typeof averagePlatformRating === "number" && averagePlatformRating > 0, `Average platform rating calculated via MongoDB aggregation: ${averagePlatformRating}`);
     assert(
       ratingDistribution.hasOwnProperty("5") &&
@@ -271,27 +431,35 @@ const runTests = async () => {
     // Admin create new owner
     const newOwnerRes = await request("POST", "/api/admin/owners", {
       name: "Chef Test Owner",
-      email: `owner.test.${Date.now()}@smartwinnr.com`,
+      email: runEmail("owner-test"),
       password: "Owner@12345",
     }, adminToken);
     assert(newOwnerRes.status === 201 && newOwnerRes.data.owner.role === "OWNER", "Admin creates restaurant owner account (HTTP 201)");
+    if (newOwnerRes.data.owner?._id) createdUserIds.push(newOwnerRes.data.owner._id);
 
     console.log("\n=======================================================");
     console.log(`   TEST SUITE EXECUTION SUMMARY: ${passed} PASSED, ${failed} FAILED`);
     console.log("=======================================================\n");
 
     if (failed > 0) {
-      process.exit(1);
+      process.exitCode = 1;
     } else {
-      process.exit(0);
+      process.exitCode = 0;
     }
   } catch (err) {
     console.error("[Test Suite] Unhandled error during test execution:", err);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     if (server) server.close();
+    await Review.deleteMany({ _id: { $in: createdReviewIds } });
+    await Restaurant.deleteMany({ _id: { $in: createdRestaurantIds } });
+    await User.deleteMany({ _id: { $in: createdUserIds } });
     await disconnectDB();
   }
 };
 
-runTests();
+runTests().catch((error) => {
+  // Startup failures (for example Atlas authentication) must exit cleanly and non-zero.
+  console.error("[Test Suite] Startup failed:", error.message);
+  process.exitCode = 1;
+});

@@ -8,77 +8,62 @@ const { connectDB, disconnectDB } = require("../config/db");
 const seedDemoData = async () => {
   try {
     console.log("[SeedDemo] Connecting to database...");
-    await connectDB();
+    const conn = await connectDB();
 
-    console.log("[SeedDemo] Cleaning up existing demo collections...");
+    // Verify database scope safety: strictly ensure we are on smartwinnr_restaurant_db
+    if (conn.connection.name !== "smartwinnr_restaurant_db") {
+      throw new Error(
+        `Safety Abort: seedDemo is restricted to 'smartwinnr_restaurant_db'. Current database is '${conn.connection.name}'.`
+      );
+    }
+
+    console.log("[SeedDemo] Verifying model indexes in Atlas...");
     await Promise.all([
-      Review.deleteMany({}),
-      Restaurant.deleteMany({}),
-      User.deleteMany({}),
+      User.init(),
+      Restaurant.init(),
+      Review.init(),
     ]);
 
-    // Ensure database compound unique indexes exist
-    await Review.init();
-    await User.init();
-    await Restaurant.init();
+    console.log("[SeedDemo] Checking / initializing users idempotently...");
 
-    console.log("[SeedDemo] Creating users...");
+    // Helper to find or create a user without overwriting existing passwords
+    const findOrCreateUser = async (name, email, password, role) => {
+      const normalizedEmail = email.toLowerCase().trim();
+      let user = await User.findOne({ email: normalizedEmail });
+      if (!user) {
+        user = await User.create({
+          name,
+          email: normalizedEmail,
+          password,
+          role,
+        });
+        console.log(`  + Created ${role}: ${normalizedEmail}`);
+      } else {
+        console.log(`  = Existing ${role}: ${normalizedEmail} (preserved, password unchanged)`);
+      }
+      return user;
+    };
 
     // 1. Admin
-    const admin = await User.create({
-      name: "Platform Administrator",
-      email: (process.env.ADMIN_EMAIL || "admin@smartwinnr.com").toLowerCase().trim(),
-      password: process.env.ADMIN_PASSWORD || "Admin@12345",
-      role: "ADMIN",
-    });
+    const adminEmail = "demo.admin@smartwinnr.com";
+    const admin = await findOrCreateUser(
+      process.env.ADMIN_NAME || "Platform Administrator",
+      adminEmail,
+      "DemoAdmin@2026",
+      "ADMIN"
+    );
 
     // 2. Restaurant Owners
-    const owner1 = await User.create({
-      name: "Chef Rajesh Verma",
-      email: "owner.spice@smartwinnr.com",
-      password: "Owner@12345",
-      role: "OWNER",
-    });
-
-    const owner2 = await User.create({
-      name: "Marco Bellini",
-      email: "owner.tuscany@smartwinnr.com",
-      password: "Owner@12345",
-      role: "OWNER",
-    });
-
-    const owner3 = await User.create({
-      name: "Kenji Sato",
-      email: "owner.tokyo@smartwinnr.com",
-      password: "Owner@12345",
-      role: "OWNER",
-    });
+    const owner1 = await findOrCreateUser("Chef Rajesh Verma", "owner.spice@smartwinnr.com", "OwnerDemo@2026", "OWNER");
+    const owner2 = await findOrCreateUser("Marco Bellini", "owner.tuscany@smartwinnr.com", "OwnerDemo@2026", "OWNER");
 
     // 3. Customers
-    const customer1 = await User.create({
-      name: "Priya Sharma",
-      email: "priya.customer@smartwinnr.com",
-      password: "Customer@12345",
-      role: "CUSTOMER",
-    });
+    const customer1 = await findOrCreateUser("Priya Sharma", "priya.customer@smartwinnr.com", "CustomerDemo@2026", "CUSTOMER");
+    const customer2 = await findOrCreateUser("Rahul Mehta", "rahul.customer@smartwinnr.com", "CustomerDemo@2026", "CUSTOMER");
 
-    const customer2 = await User.create({
-      name: "Rahul Mehta",
-      email: "rahul.customer@smartwinnr.com",
-      password: "Customer@12345",
-      role: "CUSTOMER",
-    });
+    console.log("[SeedDemo] Checking / initializing restaurants idempotently...");
 
-    const customer3 = await User.create({
-      name: "Sophia Rodriguez",
-      email: "sophia.customer@smartwinnr.com",
-      password: "Customer@12345",
-      role: "CUSTOMER",
-    });
-
-    console.log("[SeedDemo] Creating restaurants...");
-
-    const restaurants = await Restaurant.create([
+    const restaurantDefinitions = [
       {
         name: "Spice Symphony",
         location: "Hyderabad",
@@ -99,12 +84,11 @@ const seedDemoData = async () => {
       },
       {
         name: "Sakura Blossom Omakase",
-        location: "Mumbai",
+        location: "Hyderabad",
         cuisine: "Japanese",
-        address: "BKC Gourmet Lane, Bandra Kurla Complex, Mumbai",
-        description:
-          "Intimate 14-seat cedar wood sushi counter presenting seasonal fish flown in directly from Tokyo Toyosu market alongside aged single malts.",
-        owner: owner3._id,
+        address: "Jubilee Hills Road No. 10, Hyderabad",
+        description: "A seasonal sushi counter pairing careful Japanese technique with locally sourced produce.",
+        owner: owner1._id,
       },
       {
         name: "Cantina La Taqueria",
@@ -113,38 +97,50 @@ const seedDemoData = async () => {
         address: "Lavelle Road, Central Business District, Bangalore",
         description:
           "Vibrant street taco sanctuary serving slow-braised birria tacos, freshly pressed heirloom corn tortillas, and craft agave mezcal cocktails.",
-        owner: null, // Unassigned restaurant for admin demonstration
+        owner: owner2._id,
       },
       {
         name: "L'Etoile Parisian Bistro",
-        location: "Delhi",
+        location: "Bangalore",
         cuisine: "French",
-        address: "Chanakyapuri Diplomatic Enclave, New Delhi",
+        address: "Lavelle Road, Bengaluru",
         description:
           "Classic Parisian brasserie offering duck confit, beef bourguignon, and fresh buttery viennoiseries in a gilded Belle Époque atmosphere.",
         owner: null,
       },
       {
         name: "Banyan Tree Pan-Asian",
-        location: "Hyderabad",
+        location: "Bangalore",
         cuisine: "Pan-Asian",
-        address: "Hitec City Cyber Towers Road, Madhapur, Hyderabad",
+        address: "Indiranagar, Bengaluru",
         description:
           "Contemporary Asian kitchen fusing Thai basil aromas, Vietnamese pho broths, and dim sum steamers under a preserved century-old indoor banyan canopy.",
         owner: null,
       },
-    ]);
+    ];
 
-    console.log("[SeedDemo] Creating reviews with realistic ratings...");
+    const restaurantDocs = [];
+    for (const def of restaurantDefinitions) {
+      let r = await Restaurant.findOne({ name: def.name });
+      if (!r) {
+        r = await Restaurant.create(def);
+        console.log(`  + Created restaurant: ${r.name}`);
+      } else {
+        console.log(`  = Existing restaurant: ${r.name}`);
+      }
+      restaurantDocs.push(r);
+    }
 
-    const rSpice = restaurants[0];
-    const rTuscany = restaurants[1];
-    const rSakura = restaurants[2];
-    const rCantina = restaurants[3];
+    console.log("[SeedDemo] Checking / initializing reviews idempotently...");
 
-    // Reviews for Spice Symphony (Hyderabad)
-    // Ratings: 5, 4, 4 -> Average: 4.3
-    await Review.create([
+    const rSpice = restaurantDocs[0];
+    const rTuscany = restaurantDocs[1];
+    const rSakura = restaurantDocs[2];
+    const rCantina = restaurantDocs[3];
+    const rEtoile = restaurantDocs[4];
+    const rBanyan = restaurantDocs[5];
+
+    const reviewDefinitions = [
       {
         customer: customer1._id,
         restaurant: rSpice._id,
@@ -160,18 +156,6 @@ const seedDemoData = async () => {
           "Splendid ambiance in Jubilee Hills. Loved the Galouti Kebabs and Sheermal. Service was slightly slow on Saturday night, but the flavors were worth every second.",
       },
       {
-        customer: customer3._id,
-        restaurant: rSpice._id,
-        rating: 4,
-        content:
-          "Wonderful depth of flavors! You can taste the slow simmering technique. The garlic naan and dal makhani pairing was heavenly.",
-      },
-    ]);
-
-    // Reviews for Trattoria Da Tuscany (Bangalore)
-    // Ratings: 5, 5 -> Average: 5.0
-    await Review.create([
-      {
         customer: customer1._id,
         restaurant: rTuscany._id,
         rating: 5,
@@ -185,11 +169,6 @@ const seedDemoData = async () => {
         content:
           "Crisp Neapolitan crust, San Marzano tomato sweetness, and silky house-made tiramisu. Outstanding wine pairing guidance by Chef Marco.",
       },
-    ]);
-
-    // Reviews for Sakura Blossom (Mumbai)
-    // Ratings: 4, 3 -> Average: 3.5
-    await Review.create([
       {
         customer: customer2._id,
         restaurant: rSakura._id,
@@ -198,52 +177,56 @@ const seedDemoData = async () => {
           "Exceptionally fresh hamachi and otoro nigiri. The wasabi is freshly grated. Premium pricing, but truly authentic Japanese craftsmanship.",
       },
       {
-        customer: customer3._id,
+        customer: customer1._id,
         restaurant: rSakura._id,
         rating: 3,
         content:
           "Fish quality was undeniably fresh, but the seating felt quite cramped and the omakase pacing was a bit rushed towards the final course.",
       },
-    ]);
-
-    // Reviews for Cantina La Taqueria (Bangalore)
-    // Rating: 5
-    await Review.create([
       {
-        customer: customer3._id,
+        customer: customer2._id,
         restaurant: rCantina._id,
         rating: 5,
         content:
           "Best birria tacos in Bangalore without question! The consommé for dipping has so much rich chili complexity. Great music and lively crowd.",
       },
-    ]);
+      { customer: customer1._id, restaurant: rCantina._id, rating: 2, content: "Fresh tortillas, though the filling was dry and service ran slowly." },
+      { customer: customer1._id, restaurant: rEtoile._id, rating: 4, content: "Thoughtful French plates and a relaxed room; the desserts stood out." },
+      { customer: customer2._id, restaurant: rEtoile._id, rating: 3, content: "Enjoyed the ambience, but a couple of dishes arrived lukewarm." },
+      { customer: customer1._id, restaurant: rBanyan._id, rating: 4, content: "Excellent shared plates with bright herbs and a generous vegetarian menu." },
+      { customer: customer2._id, restaurant: rBanyan._id, rating: 1, content: "Long wait and disappointing seasoning on the dishes we tried." },
+    ];
+
+    for (const revDef of reviewDefinitions) {
+      const existing = await Review.findOne({
+        customer: revDef.customer,
+        restaurant: revDef.restaurant,
+      });
+      if (!existing) {
+        await Review.create(revDef);
+        console.log(`  + Created review by customer ${revDef.customer}`);
+      } else {
+        console.log(`  = Existing review preserved`);
+      }
+    }
 
     console.log("\n=======================================================");
-    console.log("   SMARTWINNR SEED DATA INITIALIZED SUCCESSFULLY");
+    console.log("   SMARTWINNR SEED DATA VERIFICATION COMPLETED");
     console.log("=======================================================");
-    console.log("Sample User Accounts (Password for all accounts: see below):");
+    console.log("Database: smartwinnr_restaurant_db (RoommateRadar untouched)");
+    console.log("Sample User Accounts (Password for all accounts: see README):");
     console.log("-------------------------------------------------------");
-    console.log("1. ADMINISTRATOR:");
-    console.log(`   Email:    admin@smartwinnr.com`);
-    console.log(`   Password: Admin@12345`);
-    console.log("\n2. RESTAURANT OWNER (Spice Symphony):");
-    console.log(`   Email:    owner.spice@smartwinnr.com`);
-    console.log(`   Password: Owner@12345`);
-    console.log("\n3. RESTAURANT OWNER (Trattoria Da Tuscany):");
-    console.log(`   Email:    owner.tuscany@smartwinnr.com`);
-    console.log(`   Password: Owner@12345`);
-    console.log("\n4. CUSTOMER:");
-    console.log(`   Email:    priya.customer@smartwinnr.com`);
-    console.log(`   Password: Customer@12345`);
-    console.log("\n5. CUSTOMER:");
-    console.log(`   Email:    rahul.customer@smartwinnr.com`);
-    console.log(`   Password: Customer@12345`);
+    console.log("1. ADMINISTRATOR:                 demo.admin@smartwinnr.com");
+    console.log("2. RESTAURANT OWNER (Spice):      owner.spice@smartwinnr.com");
+    console.log("3. RESTAURANT OWNER (Tuscany):    owner.tuscany@smartwinnr.com");
+    console.log("4. CUSTOMER (Priya):              priya.customer@smartwinnr.com");
+    console.log("5. CUSTOMER (Rahul):              rahul.customer@smartwinnr.com");
     console.log("=======================================================\n");
 
     await disconnectDB();
     process.exit(0);
   } catch (error) {
-    console.error("[SeedDemo] Seeding failed:", error);
+    console.error("[SeedDemo] Seeding failed:", error.message);
     try { await disconnectDB(); } catch (e) {}
     process.exit(1);
   }

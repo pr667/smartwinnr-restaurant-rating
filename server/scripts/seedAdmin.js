@@ -5,7 +5,13 @@ const { connectDB, disconnectDB } = require("../config/db");
 
 const seedAdmin = async () => {
   try {
-    await connectDB();
+    const conn = await connectDB();
+
+    if (conn.connection.name !== "smartwinnr_restaurant_db") {
+      throw new Error(
+        `Safety Abort: seedAdmin is restricted to 'smartwinnr_restaurant_db'. Current database is '${conn.connection.name}'.`
+      );
+    }
 
     const adminEmail = (process.env.ADMIN_EMAIL || "admin@smartwinnr.com").toLowerCase().trim();
     const adminName = process.env.ADMIN_NAME || "Platform Administrator";
@@ -32,9 +38,11 @@ const seedAdmin = async () => {
     }
 
     console.log("[SeedAdmin] Done.");
+    await disconnectDB();
     process.exit(0);
   } catch (error) {
     console.error("[SeedAdmin] Error initializing administrator:", error.message);
+    try { await disconnectDB(); } catch (e) {}
     process.exit(1);
   }
 };

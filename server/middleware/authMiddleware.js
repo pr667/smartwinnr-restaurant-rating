@@ -1,6 +1,13 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
+const getJwtSecret = () => {
+  if (!process.env.JWT_SECRET || !process.env.JWT_SECRET.trim()) {
+    throw new Error("JWT_SECRET is not configured.");
+  }
+  return process.env.JWT_SECRET;
+};
+
 /**
  * Mandatory authentication middleware
  * Verifies JWT token and attaches user document to req.user
@@ -25,7 +32,7 @@ const authenticateUser = async (req, res, next) => {
   try {
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || "smartwinnr_jwt_fallback_secret"
+      getJwtSecret()
     );
 
     const user = await User.findById(decoded.id);
@@ -73,7 +80,7 @@ const optionalAuthenticateUser = async (req, res, next) => {
   try {
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || "smartwinnr_jwt_fallback_secret"
+      getJwtSecret()
     );
     const user = await User.findById(decoded.id);
     if (user) {

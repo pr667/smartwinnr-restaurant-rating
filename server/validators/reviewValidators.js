@@ -6,13 +6,12 @@ const validateReviewInput = (data, isUpdate = false) => {
     if (rating === undefined || rating === null || rating === "") {
       errors.push("Rating is required");
     } else {
-      const numRating = Number(rating);
-      // Strictly verify integer between 1 and 5
+      // Accept only JSON numbers; coercion would incorrectly allow values such as true or "5".
       if (
-        isNaN(numRating) ||
-        !Number.isInteger(numRating) ||
-        numRating < 1 ||
-        numRating > 5
+        typeof rating !== "number" ||
+        !Number.isInteger(rating) ||
+        rating < 1 ||
+        rating > 5
       ) {
         errors.push("Rating must be a whole number between 1 and 5");
       }

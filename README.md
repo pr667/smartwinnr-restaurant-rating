@@ -317,15 +317,15 @@ Calculated across all review records directly—**never by averaging restaurant 
 
 ## 9. Sample Login Credentials
 
-All sample credentials below are pre-seeded in the database:
+The following **demonstration accounts** are created in the development database by `npm run seed`. The seeder preserves existing accounts and passwords. These are for assessment demos only; do not reuse them elsewhere.
 
 | Role | Name | Email | Password | Assigned Entity |
 | :--- | :--- | :--- | :--- | :--- |
-| **Administrator** | Platform Administrator | `admin@smartwinnr.com` | `Admin@12345` | Platform-wide governance |
-| **Restaurant Owner** | Chef Rajesh Verma | `owner.spice@smartwinnr.com` | `Owner@12345` | Spice Symphony (Hyderabad) |
-| **Restaurant Owner** | Marco Bellini | `owner.tuscany@smartwinnr.com` | `Owner@12345` | Trattoria Da Tuscany (Bangalore) |
-| **Customer** | Priya Sharma | `priya.customer@smartwinnr.com` | `Customer@12345` | Verified Diner |
-| **Customer** | Rahul Mehta | `rahul.customer@smartwinnr.com` | `Customer@12345` | Verified Diner |
+| **Administrator** | Platform Administrator | `demo.admin@smartwinnr.com` | `DemoAdmin@2026` | Platform-wide governance |
+| **Restaurant Owner** | Chef Rajesh Verma | `owner.spice@smartwinnr.com` | `OwnerDemo@2026` | Spice Symphony (Hyderabad) |
+| **Restaurant Owner** | Marco Bellini | `owner.tuscany@smartwinnr.com` | `OwnerDemo@2026` | Trattoria Da Tuscany (Bangalore) |
+| **Customer** | Priya Sharma | `priya.customer@smartwinnr.com` | `CustomerDemo@2026` | Verified Diner |
+| **Customer** | Rahul Mehta | `rahul.customer@smartwinnr.com` | `CustomerDemo@2026` | Verified Diner |
 
 > **Evaluator Tip:** The Login page features quick-fill buttons for Administrator, Owner, and Customer accounts for rapid role switching.
 
@@ -336,21 +336,22 @@ All sample credentials below are pre-seeded in the database:
 ### Prerequisites
 - Node.js (v18 or higher; v24 recommended)
 - npm (v9 or higher)
-- MongoDB instance (or utilize the pre-bundled local MongoDB binary)
+- MongoDB Atlas credentials configured in `server/.env`
 
 ### 1. Configure Environment Variables
 Verify or copy `server/.env.example` to `server/.env`:
 ```bash
 PORT=5000
 NODE_ENV=development
-MONGO_URI=mongodb://127.0.0.1:27017/smartwinnr_restaurant_db
-JWT_SECRET=smartwinnr_super_secret_jwt_key_2026_production_grade
-JWT_EXPIRES_IN=7d
+MONGO_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/smartwinnr_restaurant_db?retryWrites=true&w=majority
+MONGO_TEST_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/smartwinnr_restaurant_test?retryWrites=true&w=majority
+JWT_SECRET=<generate-a-64-byte-random-secret-locally>
+JWT_EXPIRES_IN=1d
 CLIENT_URL=http://localhost:5173
 
 ADMIN_NAME=Platform Administrator
-ADMIN_EMAIL=admin@smartwinnr.com
-ADMIN_PASSWORD=Admin@12345
+ADMIN_EMAIL=<optional-seed-admin-email>
+ADMIN_PASSWORD=<optional-seed-admin-password>
 ```
 
 Verify or copy `client/.env.example` to `client/.env`:

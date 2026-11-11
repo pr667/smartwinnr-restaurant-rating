@@ -94,7 +94,7 @@ const Login = () => {
             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={() => fillCredentials('admin@smartwinnr.com', 'Admin@12345')}
+                onClick={() => fillCredentials('demo.admin@smartwinnr.com', 'DemoAdmin@2026')}
                 className="btn btn-secondary btn-sm"
                 style={{ fontSize: '0.75rem', padding: '0.3rem 0.55rem' }}
               >
@@ -102,7 +102,7 @@ const Login = () => {
               </button>
               <button
                 type="button"
-                onClick={() => fillCredentials('owner.spice@smartwinnr.com', 'Owner@12345')}
+                onClick={() => fillCredentials('owner.spice@smartwinnr.com', 'OwnerDemo@2026')}
                 className="btn btn-secondary btn-sm"
                 style={{ fontSize: '0.75rem', padding: '0.3rem 0.55rem' }}
               >
@@ -110,7 +110,7 @@ const Login = () => {
               </button>
               <button
                 type="button"
-                onClick={() => fillCredentials('priya.customer@smartwinnr.com', 'Customer@12345')}
+                onClick={() => fillCredentials('priya.customer@smartwinnr.com', 'CustomerDemo@2026')}
                 className="btn btn-secondary btn-sm"
                 style={{ fontSize: '0.75rem', padding: '0.3rem 0.55rem' }}
               >
