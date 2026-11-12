@@ -28,7 +28,8 @@ This report records only checks performed in this workspace. No database credent
 | Rating validation: 1–5 | Integer JSON values accepted | All five integer ratings accepted | PASS |
 | Rating validation: invalid values | Reject 0, 6, negatives, decimals, null, empty, strings, booleans and missing | Eleven invalid inputs rejected in validator checks | PASS |
 | Review duplicate enforcement | Compound unique database index and HTTP 409 | Test Atlas compound unique index exists; sequential duplicate request returns 409; concurrent race not tested | PASS (partial) |
-| API integration/authentication | Actual request workflows succeed with Atlas | Existing test suite completed 38 assertions, all passing | PASS |
+| API integration/authentication | Actual request workflows succeed with Atlas | Existing test suite completed 39 assertions, all passing | PASS |
+| CORS at alternate Vite port | Browser on port 5174 can call API | Preflight from `http://localhost:5174` returns 204 and allows that origin; admin, owner and customer login return 200; registration returns 201 | PASS |
 | Concurrent duplicate review | Two simultaneous POSTs yield one 201, one 409, one record | Integration suite assertion passed against `smartwinnr_restaurant_test` | PASS |
 | Development demo seed | Idempotent sample data in development DB only | Five role accounts, six restaurants and 12 reviews created; second seed preserved records and counts | PASS |
 | Demo account login | All documented accounts authenticate | Administrator, two owners and two customers returned HTTP 200 with expected roles | PASS |
